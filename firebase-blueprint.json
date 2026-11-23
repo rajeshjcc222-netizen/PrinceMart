@@ -1,0 +1,276 @@
+{
+  "entities": {
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Student contact and hostel delivery profile owned by the authenticated user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the student."
+        },
+        "name": {
+          "type": "string",
+          "description": "Student display name (2-60 chars)."
+        },
+        "mobile": {
+          "type": "string",
+          "description": "10-digit Indian mobile number."
+        },
+        "hostelName": {
+          "type": "string",
+          "description": "Hostel name (2-80 chars)."
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "Hostel room number (1-20 chars)."
+        },
+        "deliveryPreference": {
+          "type": "string",
+          "enum": ["HOSTEL_GATE", "SHOP_PICKUP"],
+          "description": "Preferred fulfillment mode."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "name",
+        "mobile",
+        "hostelName",
+        "roomNumber",
+        "deliveryPreference",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Nearby local shop registered by a shopkeeper for hyperlocal hostel ordering.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the shopkeeper who owns this shop."
+        },
+        "shopName": {
+          "type": "string",
+          "description": "Shop display name (2-80 chars)."
+        },
+        "category": {
+          "type": "string",
+          "description": "Shop category (2-40 chars)."
+        },
+        "mobile": {
+          "type": "string",
+          "description": "10-digit shopkeeper mobile number for call inquiries."
+        },
+        "distance": {
+          "type": "string",
+          "description": "Walking distance from hostel gate (1-30 chars)."
+        },
+        "shopOpen": {
+          "type": "boolean",
+          "description": "Whether the shop is currently open for incoming orders."
+        },
+        "listed": {
+          "type": "boolean",
+          "description": "Whether the shop is actively listed in the campus directory."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "ownerId",
+        "shopName",
+        "category",
+        "mobile",
+        "distance",
+        "shopOpen",
+        "listed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Hyperlocal student order (quick items, text note, and/or audio voice note) routed to a specific shop or broadcast to all open shops.",
+      "type": "object",
+      "properties": {
+        "studentUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the student who placed the order."
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Student name snapshot at order time."
+        },
+        "studentMobile": {
+          "type": "string",
+          "description": "Student 10-digit mobile number for shopkeeper call inquiry."
+        },
+        "hostelName": {
+          "type": "string",
+          "description": "Hostel name for delivery."
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "Room number for delivery."
+        },
+        "orderMode": {
+          "type": "string",
+          "enum": ["COMMON", "DIRECT"],
+          "description": "COMMON broadcasts to all open shops; DIRECT targets one shop."
+        },
+        "broadcastOpen": {
+          "type": "boolean",
+          "description": "True only while a COMMON order is still PENDING so shopkeepers can query the open pool."
+        },
+        "deliveryMode": {
+          "type": "string",
+          "enum": ["HOSTEL_GATE", "SHOP_PICKUP"],
+          "description": "Hostel gate delivery or shop self-pickup."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["UPI_GATE", "CASH_COD"],
+          "description": "Payment mode chosen at checkout."
+        },
+        "pickupPin": {
+          "type": "string",
+          "description": "4-digit verification PIN shown to student and shopkeeper."
+        },
+        "itemsSummary": {
+          "type": "array",
+          "description": "Bounded list (max 30) of formatted item lines ordered from the quick grid."
+        },
+        "totalAmount": {
+          "type": "integer",
+          "description": "Estimated subtotal in INR (0-50000)."
+        },
+        "customNote": {
+          "type": "string",
+          "description": "Optional text list or instructions typed by the student (0-500 chars)."
+        },
+        "voiceNoteBase64": {
+          "type": "string",
+          "description": "Optional AMR-NB audio voice note encoded as Base64 (0-300000 chars)."
+        },
+        "voiceNoteDurationSec": {
+          "type": "integer",
+          "description": "Recorded voice note duration in seconds (0-60)."
+        },
+        "targetShopId": {
+          "type": "string",
+          "description": "Shop document ID for DIRECT orders; empty string for COMMON."
+        },
+        "targetShopName": {
+          "type": "string",
+          "description": "Shop name for DIRECT orders; empty string for COMMON."
+        },
+        "targetShopOwnerId": {
+          "type": "string",
+          "description": "Shop owner UID for DIRECT orders; empty string for COMMON."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "ACCEPTED", "PACKING", "AT_GATE", "DELIVERED", "CANCELLED", "DECLINED"],
+          "description": "Live order lifecycle state."
+        },
+        "acceptedShopId": {
+          "type": "string",
+          "description": "Document ID of the shop that accepted the order."
+        },
+        "acceptedShopName": {
+          "type": "string",
+          "description": "Name of the accepting shop."
+        },
+        "acceptedShopMobile": {
+          "type": "string",
+          "description": "10-digit mobile number of the accepting shop."
+        },
+        "acceptedShopOwnerId": {
+          "type": "string",
+          "description": "Owner UID of the accepting shop."
+        },
+        "acceptedShopDistance": {
+          "type": "string",
+          "description": "Distance label of the accepting shop."
+        },
+        "skippedShopIds": {
+          "type": "array",
+          "description": "Bounded list (max 50) of shop IDs that skipped a COMMON order."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp written via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp written via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "studentUid",
+        "studentName",
+        "studentMobile",
+        "hostelName",
+        "roomNumber",
+        "orderMode",
+        "broadcastOpen",
+        "deliveryMode",
+        "paymentMethod",
+        "pickupPin",
+        "itemsSummary",
+        "totalAmount",
+        "customNote",
+        "voiceNoteBase64",
+        "voiceNoteDurationSec",
+        "targetShopId",
+        "targetShopName",
+        "targetShopOwnerId",
+        "status",
+        "acceptedShopId",
+        "acceptedShopName",
+        "acceptedShopMobile",
+        "acceptedShopOwnerId",
+        "acceptedShopDistance",
+        "skippedShopIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/StudentProfile" },
+      "description": "Per-user student delivery profile keyed by auth UID."
+    },
+    "/shops/{shopId}": {
+      "schema": { "$ref": "#/entities/Shop" },
+      "description": "Nearby shops registered by local shopkeepers."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Real-time student orders supporting direct shop targeting and common open-shop broadcasts."
+    }
+  }
+}

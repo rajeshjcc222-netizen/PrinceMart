@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">PrinceMart</string>
+    <string name="app_tagline">बगल की दुकानों से हॉस्टल गेट तक डिलीवरी</string>
+    <string name="footer_credit">Developed by Prince</string>
+    <string name="role_student">🎓 स्टूडेंट ऐप</string>
+    <string name="role_shopkeeper">🏪 दुकानदार पैनल</string>
+    <string name="delivery_hostel_gate">हॉस्टल गेट डिलीवरी</string>
+    <string name="delivery_shop_pickup">दुकान से पिकअप</string>
+    <string name="auth_title">PrinceMart में आपका स्वागत है</string>
+    <string name="auth_subtitle">हॉस्टल के पास की दुकानों से मिनटों में सामान मँगवाएँ — बोलकर या लिखकर!</string>
+    <string name="auth_google_button">Google से लॉगिन करें</string>
+    <string name="auth_note">रियल-टाइम ऑर्डर और लाइव ट्रैकिंग के लिए सुरक्षित Google लॉगिन</string>
+    <string name="cd_app_logo">PrinceMart लोगो</string>
+    <string name="cd_hero_banner">हॉस्टल डिलीवरी बैनर</string>
+    <string name="cd_welcome_shop">पास की दुकान का चित्र</string>
+    <string name="cd_call_button">कॉल करें</string>
+    <string name="cd_record_voice">वॉइस नोट रिकॉर्ड करें</string>
+    <string name="cd_play_voice">वॉइस नोट सुनें</string>
+    <string name="cd_sign_out">लॉगआउट करें</string>
+</resources>

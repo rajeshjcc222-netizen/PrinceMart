@@ -1,0 +1,276 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared hardened primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isTenDigitMobile(val) {
+      return val is string && val.size() == 10 && val.matches('^[0-9]{10}$');
+    }
+
+    // ---------------------------------------------------------
+    // Validation Helpers (Anti-Update-Gap Blueprints)
+    // ---------------------------------------------------------
+
+    function isValidStudent(data) {
+      return isValidId(data.userId) &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 60 &&
+             isTenDigitMobile(data.mobile) &&
+             data.hostelName is string && data.hostelName.size() >= 2 && data.hostelName.size() <= 80 &&
+             data.roomNumber is string && data.roomNumber.size() >= 1 && data.roomNumber.size() <= 20 &&
+             data.deliveryPreference in ['HOSTEL_GATE', 'SHOP_PICKUP'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidShop(data) {
+      return isValidId(data.ownerId) &&
+             data.shopName is string && data.shopName.size() >= 2 && data.shopName.size() <= 80 &&
+             data.category is string && data.category.size() >= 2 && data.category.size() <= 40 &&
+             isTenDigitMobile(data.mobile) &&
+             data.distance is string && data.distance.size() >= 1 && data.distance.size() <= 30 &&
+             data.shopOpen is bool &&
+             data.listed is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidOrder(data) {
+      return isValidId(data.studentUid) &&
+             data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 60 &&
+             isTenDigitMobile(data.studentMobile) &&
+             data.hostelName is string && data.hostelName.size() >= 2 && data.hostelName.size() <= 80 &&
+             data.roomNumber is string && data.roomNumber.size() >= 1 && data.roomNumber.size() <= 20 &&
+             data.orderMode in ['COMMON', 'DIRECT'] &&
+             data.broadcastOpen is bool &&
+             data.deliveryMode in ['HOSTEL_GATE', 'SHOP_PICKUP'] &&
+             data.paymentMethod in ['UPI_GATE', 'CASH_COD'] &&
+             data.pickupPin is string && data.pickupPin.size() == 4 && data.pickupPin.matches('^[0-9]{4}$') &&
+             data.itemsSummary is list && data.itemsSummary.size() <= 30 &&
+             (data.itemsSummary.size() == 0 || data.itemsSummary[0] is string) &&
+             data.totalAmount is int && data.totalAmount >= 0 && data.totalAmount <= 50000 &&
+             data.customNote is string && data.customNote.size() <= 500 &&
+             data.voiceNoteBase64 is string && data.voiceNoteBase64.size() <= 300000 &&
+             data.voiceNoteDurationSec is int && data.voiceNoteDurationSec >= 0 && data.voiceNoteDurationSec <= 60 &&
+             (data.itemsSummary.size() > 0 || data.customNote.size() > 0 || data.voiceNoteBase64.size() > 0) &&
+             data.targetShopId is string && data.targetShopId.size() <= 128 &&
+             data.targetShopName is string && data.targetShopName.size() <= 80 &&
+             data.targetShopOwnerId is string && data.targetShopOwnerId.size() <= 128 &&
+             data.status in ['PENDING', 'ACCEPTED', 'PACKING', 'AT_GATE', 'DELIVERED', 'CANCELLED', 'DECLINED'] &&
+             data.acceptedShopId is string && data.acceptedShopId.size() <= 128 &&
+             data.acceptedShopName is string && data.acceptedShopName.size() <= 80 &&
+             (data.acceptedShopMobile == '' || isTenDigitMobile(data.acceptedShopMobile)) &&
+             data.acceptedShopOwnerId is string && data.acceptedShopOwnerId.size() <= 128 &&
+             data.acceptedShopDistance is string && data.acceptedShopDistance.size() <= 30 &&
+             data.skippedShopIds is list && data.skippedShopIds.size() <= 50 &&
+             (data.skippedShopIds.size() == 0 || data.skippedShopIds[0] is string) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isTerminalOrderStatus(status) {
+      return status in ['DELIVERED', 'CANCELLED', 'DECLINED'];
+    }
+
+    // ---------------------------------------------------------
+    // 1. Students Collection (Strict Owner-Only PII Isolation)
+    // ---------------------------------------------------------
+    match /students/{studentId} {
+      allow get: if isSignedIn() && isValidId(studentId) && request.auth.uid == studentId;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       isValidId(studentId) &&
+                       request.auth.uid == studentId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'name', 'mobile', 'hostelName', 'roomNumber', 'deliveryPreference', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'mobile', 'hostelName', 'roomNumber', 'deliveryPreference', 'createdAt', 'updatedAt']) &&
+                       isValidStudent(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(studentId) &&
+                       request.auth.uid == studentId &&
+                       isValidStudent(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobile', 'hostelName', 'roomNumber', 'deliveryPreference', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(studentId) && request.auth.uid == studentId;
+    }
+
+    // ---------------------------------------------------------
+    // 2. Shops Collection (Campus Directory + Owner Management)
+    // ---------------------------------------------------------
+    match /shops/{shopId} {
+      allow get: if isSignedIn() && isValidId(shopId) &&
+                    (resource.data.listed == true || resource.data.ownerId == request.auth.uid);
+
+      allow list: if isSignedIn() &&
+                     (resource.data.listed == true || resource.data.ownerId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+                       isValidId(shopId) &&
+                       incoming().ownerId == request.auth.uid &&
+                       incoming().keys().hasAll(['ownerId', 'shopName', 'category', 'mobile', 'distance', 'shopOpen', 'listed', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['ownerId', 'shopName', 'category', 'mobile', 'distance', 'shopOpen', 'listed', 'createdAt', 'updatedAt']) &&
+                       isValidShop(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(shopId) &&
+                       isValidShop(incoming()) &&
+                       existing().ownerId == request.auth.uid &&
+                       incoming().ownerId == existing().ownerId &&
+                       incoming().createdAt == existing().createdAt && (
+                         // Action: Toggle OPEN / CLOSED status
+                         incoming().diff(existing()).affectedKeys().hasOnly(['shopOpen', 'updatedAt']) ||
+                         // Action: Update shop profile details
+                         incoming().diff(existing()).affectedKeys().hasOnly(['shopName', 'category', 'mobile', 'distance', 'shopOpen', 'listed', 'updatedAt'])
+                       );
+
+      allow delete: if isSignedIn() && isValidId(shopId) && existing().ownerId == request.auth.uid;
+    }
+
+    // ---------------------------------------------------------
+    // 3. Orders Collection (Student + Shopkeeper State Machine)
+    // ---------------------------------------------------------
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (
+        resource.data.studentUid == request.auth.uid ||
+        resource.data.targetShopOwnerId == request.auth.uid ||
+        resource.data.acceptedShopOwnerId == request.auth.uid ||
+        resource.data.broadcastOpen == true
+      );
+
+      allow list: if isSignedIn() && (
+        resource.data.studentUid == request.auth.uid ||
+        resource.data.targetShopOwnerId == request.auth.uid ||
+        resource.data.acceptedShopOwnerId == request.auth.uid ||
+        resource.data.broadcastOpen == true
+      );
+
+      allow create: if isSignedIn() &&
+                       isValidId(orderId) &&
+                       incoming().keys().hasAll([
+                         'studentUid', 'studentName', 'studentMobile', 'hostelName', 'roomNumber',
+                         'orderMode', 'broadcastOpen', 'deliveryMode', 'paymentMethod', 'pickupPin',
+                         'itemsSummary', 'totalAmount', 'customNote', 'voiceNoteBase64', 'voiceNoteDurationSec',
+                         'targetShopId', 'targetShopName', 'targetShopOwnerId',
+                         'status', 'acceptedShopId', 'acceptedShopName', 'acceptedShopMobile',
+                         'acceptedShopOwnerId', 'acceptedShopDistance', 'skippedShopIds',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'studentUid', 'studentName', 'studentMobile', 'hostelName', 'roomNumber',
+                         'orderMode', 'broadcastOpen', 'deliveryMode', 'paymentMethod', 'pickupPin',
+                         'itemsSummary', 'totalAmount', 'customNote', 'voiceNoteBase64', 'voiceNoteDurationSec',
+                         'targetShopId', 'targetShopName', 'targetShopOwnerId',
+                         'status', 'acceptedShopId', 'acceptedShopName', 'acceptedShopMobile',
+                         'acceptedShopOwnerId', 'acceptedShopDistance', 'skippedShopIds',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidOrder(incoming()) &&
+                       incoming().studentUid == request.auth.uid &&
+                       incoming().status == 'PENDING' &&
+                       incoming().acceptedShopId == '' &&
+                       incoming().acceptedShopName == '' &&
+                       incoming().acceptedShopMobile == '' &&
+                       incoming().acceptedShopOwnerId == '' &&
+                       incoming().acceptedShopDistance == '' &&
+                       incoming().skippedShopIds.size() == 0 &&
+                       (
+                         (incoming().orderMode == 'COMMON' &&
+                          incoming().broadcastOpen == true &&
+                          incoming().targetShopId == '' &&
+                          incoming().targetShopOwnerId == '') ||
+                         (incoming().orderMode == 'DIRECT' &&
+                          incoming().broadcastOpen == false &&
+                          isValidId(incoming().targetShopId) &&
+                          exists(/databases/$(database)/documents/shops/$(incoming().targetShopId)) &&
+                          get(/databases/$(database)/documents/shops/$(incoming().targetShopId)).data.ownerId == incoming().targetShopOwnerId)
+                       );
+
+      // Every action branch below uses affectedKeys().hasOnly(...) to lock all immutable fields
+      allow update: if isSignedIn() &&
+                       isValidId(orderId) &&
+                       !isTerminalOrderStatus(existing().status) &&
+                       isValidOrder(incoming()) &&
+                       incoming().studentUid == existing().studentUid &&
+                       incoming().createdAt == existing().createdAt && (
+                         // Action 1: Shopkeeper accepts a PENDING order (first-come wins for COMMON)
+                         (
+                           existing().status == 'PENDING' &&
+                           incoming().status == 'ACCEPTED' &&
+                           incoming().broadcastOpen == false &&
+                           incoming().acceptedShopOwnerId == request.auth.uid &&
+                           isValidId(incoming().acceptedShopId) &&
+                           isTenDigitMobile(incoming().acceptedShopMobile) &&
+                           incoming().acceptedShopName.size() >= 2 &&
+                           (existing().orderMode == 'COMMON' || existing().targetShopOwnerId == request.auth.uid) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly([
+                             'status', 'broadcastOpen', 'acceptedShopId', 'acceptedShopName',
+                             'acceptedShopMobile', 'acceptedShopOwnerId', 'acceptedShopDistance', 'updatedAt'
+                           ]) &&
+                           exists(/databases/$(database)/documents/shops/$(incoming().acceptedShopId)) &&
+                           get(/databases/$(database)/documents/shops/$(incoming().acceptedShopId)).data.ownerId == request.auth.uid
+                         ) ||
+                         // Action 2: Shopkeeper skips a COMMON PENDING order
+                         (
+                           existing().status == 'PENDING' &&
+                           existing().orderMode == 'COMMON' &&
+                           incoming().status == 'PENDING' &&
+                           incoming().broadcastOpen == true &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['skippedShopIds', 'updatedAt'])
+                         ) ||
+                         // Action 3: Target shopkeeper declines a DIRECT PENDING order
+                         (
+                           existing().status == 'PENDING' &&
+                           existing().orderMode == 'DIRECT' &&
+                           existing().targetShopOwnerId == request.auth.uid &&
+                           incoming().status == 'DECLINED' &&
+                           incoming().broadcastOpen == false &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'broadcastOpen', 'updatedAt'])
+                         ) ||
+                         // Action 4: Accepted shopkeeper advances order step-by-step (no shortcutting)
+                         (
+                           existing().acceptedShopOwnerId == request.auth.uid &&
+                           (
+                             (existing().status == 'ACCEPTED' && incoming().status == 'PACKING') ||
+                             (existing().status == 'PACKING' && incoming().status == 'AT_GATE') ||
+                             (existing().status == 'AT_GATE' && incoming().status == 'DELIVERED')
+                           ) &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                         ) ||
+                         // Action 5: Student cancels their own PENDING order
+                         (
+                           existing().studentUid == request.auth.uid &&
+                           existing().status == 'PENDING' &&
+                           incoming().status == 'CANCELLED' &&
+                           incoming().broadcastOpen == false &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['status', 'broadcastOpen', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if false;
+    }
+  }
+}
